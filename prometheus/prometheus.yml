@@ -1,0 +1,19 @@
+global:
+  scrape_interval:     15s  # 디폴트값으로, 타겟의 데이터를 15초마다 수집한다.
+
+  # 외부 시스템(외부 저장소, 알람매니저)과 통신할 때 시계열 데이터 또는 알람에 이 라벨이 붙는다.
+  external_labels:
+    monitor: 'server-monitor'
+
+# 수집 정보 설정, 타겟의 엔드포인트를 설정한다.
+# 여기서는 프로메테우스 본인 서버의 정보를 수집한다.
+scrape_configs:
+  # job 이름은 시계열 데이터 수집 시 `job=<job_name>`으로 라벨이 추가된다.
+  - job_name: 'ops-agent'
+
+    # 맨 위의 global 설정 오버라이딩
+    # 이 job은 5초마다 타겟으로부터 데이터를 수집한다.
+    scrape_interval: 5s
+
+    static_configs:
+      - targets: ['demo-api:8000']

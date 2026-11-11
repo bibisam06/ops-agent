@@ -1,0 +1,15 @@
+services:
+  demo-api:
+    build:
+      context: .
+      dockerfile: demo-api/Dockerfile
+    ports:
+      - "8000:8000"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
