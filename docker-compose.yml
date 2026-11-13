@@ -5,11 +5,27 @@ services:
       dockerfile: demo-api/Dockerfile
     ports:
       - "8000:8000"
+    container_name: "api-server"
 
   prometheus:
     image: prom/prometheus
+    container_name: "prometheus"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    container_name: "cadvisor"
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /run:/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+
+
 
