@@ -15,6 +15,30 @@ TOOLS = [
         "required" : ["name"],
         },
     },
+    {
+        "name" : "get_container_logs",
+        "description" : "특정 컨테이너의 로그를 조회한다. 컨테이너 이름은 get_container_list로 먼저 확인할 수 있다.",
+        "input_schema" : {"type" : "object", "properties" : {
+            "name" : {"type" : "string", "description" : "컨테이너 이름 또는 ID"},
+            "tail" : {"type" : "integer", "description" : "최근 몇 줄의 로그를 조회할지 설정한다. 기본값은 50이다.", "default" : 50}
+        },
+        "required" : ["name"]
+        },
+    },
+    {
+        "name": "query_prometheus",
+        "description": "Prometheus에 PromQL 쿼리를 실행해 결과를 조회한다. "
+                       "사용 가능한 메트릭: http_requests_total (라벨: method, path, status), "
+                       "cAdvisor의 container_cpu_usage_seconds_total, container_memory_usage_bytes 등 "
+                       "(라벨 name으로 컨테이너 지정). 요청률은 rate(...[1m]) 형태로 조회한다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "실행할 PromQL 쿼리"}
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 ## tools ##
@@ -27,7 +51,6 @@ def get_container_list():
         {"name": c.name, "status": c.status, "image": c.image.tags}
         for c in containers
     ]
-    print(result)
     return result
 
 
@@ -53,12 +76,36 @@ def get_container_stats(name : str):
         "mem_percent": round(mem_used / mem_limit * 100, 2),
     }
 
+def get_container_logs(name : str, tail : int = 50):
+    client = docker.from_env()
+    container = client.containers.get(name)
+    logs = container.logs(tail=tail)
+    return logs.decode("utf-8", errors="replace")
 
+
+'''
+r = httpx.get("http://localhost:9090/api/v1/query",
+              params={"query": "http_requests_total"})
+print(r.json()["data"]["result"])
+
+'''
+
+#http://localhost:9090/api/v1/query
+def query_prometheus(query : str):
+    response = httpx.get("http://localhost:9090/api/v1/query", params={"query": query}, timeout=10)
+    return (
+        response.json()["data"]["result"]
+        if response.status_code == 200
+        else {"error": response.json()["error"]}
+    )
 
 TOOL_FUNCS = {
     "get_container_list": get_container_list,
     "get_container_stats": get_container_stats,
+    "get_container_logs": get_container_logs,
+    "query_prometheus": query_prometheus,
 }
 
 
-
+if __name__ == "__main__":
+    print("HELLO")
