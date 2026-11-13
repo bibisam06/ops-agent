@@ -83,13 +83,6 @@ def get_container_logs(name : str, tail : int = 50):
     return logs.decode("utf-8", errors="replace")
 
 
-'''
-r = httpx.get("http://localhost:9090/api/v1/query",
-              params={"query": "http_requests_total"})
-print(r.json()["data"]["result"])
-
-'''
-
 #http://localhost:9090/api/v1/query
 def query_prometheus(query : str):
     response = httpx.get("http://localhost:9090/api/v1/query", params={"query": query}, timeout=10)
@@ -106,6 +99,3 @@ TOOL_FUNCS = {
     "query_prometheus": query_prometheus,
 }
 
-
-if __name__ == "__main__":
-    print("HELLO")

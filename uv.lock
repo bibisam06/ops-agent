@@ -533,6 +533,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "prometheus-client" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -543,6 +544,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.162.4" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
+    { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
