@@ -33,9 +33,10 @@ SYSTEM_PROMPT = """
 - 권장 조치: <1~2줄>
 """
 
+MAX_TURNS = 10
 
 def chat(messages : list) -> str:
-    while True:
+    for turn in range(MAX_TURNS):
         # ① Claude 호출
         response = client.messages.create(
             model="claude-opus-5-5",
@@ -55,18 +56,27 @@ def chat(messages : list) -> str:
         for block in response.content:
             if block.type == "tool_use":
                 print(f"  [툴 실행] {block.name}({block.input})")
-                func = TOOL_FUNCS[block.name]
-                result = func(**block.input)
+                try:
+                    func = TOOL_FUNCS[block.name]  # 없는 툴 이름이면 KeyError → except로
+                    result = func(**block.input)
+                    content, is_error = json.dumps(result, ensure_ascii=False, default=str), False
+                except Exception as e:
+                    # 실패도 결과로 돌려줘서 Claude가 보고 다시 시도하게 함
+                    content, is_error = f"{type(e).__name__}: {e}", True
+                    print(f"  [툴 에러] {content}")
 
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,  # 요청 id와 짝 맞추기
-                    "content": json.dumps(result, ensure_ascii=False, default=str),  # 결과를 문자열로 변환
+                    "content": content,
+                    "is_error": is_error,
                 })
 
         messages.append({"role": "user", "content": tool_results})
 
-
+    msg = f"툴 호출이 {MAX_TURNS}회를 넘어 중단했어요."
+    messages.append({"role": "assistant", "content": msg})
+    return msg
 
 
 def run():
