@@ -4,8 +4,70 @@ load_dotenv()
 import anthropic
 client = anthropic.Anthropic()
 
-from tools import TOOLS, TOOL_FUNCS
+from agent.tools import TOOLS, TOOL_FUNCS
 import json
+
+SYSTEM_PROMPT = """
+너는 Docker 컨테이너 환경의 장애를 진단하는 운영(SRE) 에이전트다.
+사용자의 질문에 추측하지 말고, 반드시 툴로 확인한 근거를 바탕으로 답한다.
+
+## 환경
+- 컨테이너: api-server(진단 대상 FastAPI), prometheus, cadvisor
+- Prometheus 주요 메트릭
+  - 요청 수: http_requests_total{method, path, status}
+  - CPU: rate(container_cpu_usage_seconds_total{name="api-server"}[1m])
+  - 메모리: container_memory_usage_bytes{name="api-server"}
+
+## 진단 절차
+1. get_container_list로 컨테이너 상태부터 확인한다 (죽었거나 재시작 중인지).
+2. get_container_stats / query_prometheus로 CPU·메모리·에러율 이상을 찾는다.
+   - 에러율: sum(rate(http_requests_total{status=~"5.."}[1m])) by (path)
+3. 이상이 보이면 get_container_logs로 원인(예외, 스택트레이스)을 확인한다.
+4. 근거가 부족하면 툴을 더 호출하고, 그래도 모르면 모른다고 말한다.
+
+## 답변 형식
+진단 결과는 항상 아래 형식으로 끝낸다.
+- 장애 유형: cpu_spike | memory_leak | error_spike | none
+- 원인 컨테이너: <이름>
+- 근거: <확인한 수치/로그 1~3줄>
+- 권장 조치: <1~2줄>
+"""
+
+
+def chat(messages : list) -> str:
+    while True:
+        # ① Claude 호출
+        response = client.messages.create(
+            model="claude-opus-5-5",
+            max_tokens=4096,
+            tools=TOOLS,
+            messages=messages,
+            system=SYSTEM_PROMPT,
+        )
+
+        messages.append({"role": "assistant", "content": response.content})
+
+        if response.stop_reason != "tool_use":
+            return "".join(b.text for b in response.content if b.type == "text")
+
+
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                print(f"  [툴 실행] {block.name}({block.input})")
+                func = TOOL_FUNCS[block.name]
+                result = func(**block.input)
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,  # 요청 id와 짝 맞추기
+                    "content": json.dumps(result, ensure_ascii=False, default=str),  # 결과를 문자열로 변환
+                })
+
+        messages.append({"role": "user", "content": tool_results})
+
+
+
 
 def run():
     messages = []
@@ -23,37 +85,9 @@ def run():
             continue
 
         messages.append({"role": "user", "content": user_input})
+        answer = chat(messages)
 
-        while True:  # 툴 루프: Claude가 툴을 그만 쓸 때까지 반복
-            response = client.messages.create(
-                model="claude-opus-5-5",
-                max_tokens=4096,
-                tools=TOOLS,
-                messages=messages,
-            )
-            messages.append({"role": "assistant", "content": response.content})
-
-            for block in response.content:
-                if block.type == "text":
-                    print("Claude:", block.text)
-
-            if response.stop_reason != "tool_use":
-                break  # 툴 요청 없음 → 안쪽 루프만 탈출, 다시 You: 입력으로
-
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    print(f"  [툴 실행] {block.name}({block.input})")
-                    func = TOOL_FUNCS[block.name]
-                    result = func(**block.input)
-
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,  # 요청 id와 짝 맞추기
-                        "content": json.dumps(result, ensure_ascii=False, default=str),  # 결과를 문자열로 변환
-                    })
-
-            messages.append({"role": "user", "content": tool_results})
+        print("Claude:", answer)
 
 
 
